@@ -174,7 +174,7 @@ static void svc_ddb(struct svc_function_ddb *ddb,
 static void svc_power(struct svc_function_power *power,
 		      int payload_length, struct greybus_host_device *hd)
 {
-	u8 module_id = power->module_id;
+	u8 module_id = power->device_id;
 
 	/*
 	 * The AP is only allowed to get a Battery Status message, not a Battery
