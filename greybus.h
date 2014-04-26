@@ -101,12 +101,7 @@
 
 struct gbuf;
 
-struct gmod_cport {
-	u16	id;
-	u16	size;
-	u8	speed;	// valid???
-	// FIXME, what else?
-};
+typedef u16	cport_id_t;
 
 struct gmod_string {
 	u16	length;
@@ -123,7 +118,7 @@ typedef void (*gbuf_complete_t)(struct gbuf *gbuf);
  * to the next layer (above or below).
  */
 struct transfer_buffer {
-	u8	cport_id;
+	u8	cport_id;	/* Note: truncated to 8 bits */
 	u8	data[0];
 };
 
@@ -132,7 +127,7 @@ struct gbuf {
 	void *hdpriv;
 
 	struct greybus_module *gmod;
-	struct gmod_cport *cport;
+	cport_id_t cport_id;
 	int status;
 	struct transfer_buffer *transfer_buffer;
 	u32 transfer_flags;		/* flags for the transfer buffer */
@@ -198,8 +193,8 @@ struct greybus_host_device {
 struct greybus_host_device *greybus_create_hd(struct greybus_host_driver *host_driver,
 					      struct device *parent);
 void greybus_remove_hd(struct greybus_host_device *hd);
-void greybus_cport_in(struct greybus_host_device *hd, int cport_id, u8 *data,
-			   size_t length);
+void greybus_cport_in(struct greybus_host_device *hd, cport_id_t cport_id,
+			u8 *data, size_t length);
 void greybus_gbuf_finished(struct gbuf *gbuf);
 
 
@@ -215,7 +210,7 @@ struct greybus_module {
 	struct greybus_descriptor_serial_number serial_number;
 	int num_cports;
 	int num_strings;
-	struct gmod_cport *cport[MAX_CPORTS_PER_MODULE];
+	cport_id_t cport_ids[MAX_CPORTS_PER_MODULE];
 	struct gmod_string *string[MAX_STRINGS_PER_MODULE];
 
 	struct greybus_host_device *hd;
@@ -230,7 +225,7 @@ struct greybus_module {
 #define to_greybus_module(d) container_of(d, struct greybus_module, dev)
 
 struct gbuf *greybus_alloc_gbuf(struct greybus_module *gmod,
-				struct gmod_cport *cport,
+				cport_id_t cport_id,
 				gbuf_complete_t complete,
 				unsigned int size,
 				gfp_t gfp_mask,
@@ -310,9 +305,9 @@ int gb_gbuf_init(void);
 void gb_gbuf_exit(void);
 
 int gb_register_cport_complete(struct greybus_module *gmod,
-			       gbuf_complete_t handler, int cport_id,
+			       gbuf_complete_t handler, cport_id_t cport_id,
 			       void *context);
-void gb_deregister_cport_complete(int cport_id);
+void gb_deregister_cport_complete(cport_id_t cport_id);
 
 extern const struct attribute_group *greybus_module_groups[];
 

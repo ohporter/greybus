@@ -118,8 +118,8 @@ static int alloc_gbuf_data(struct gbuf *gbuf, unsigned int size, gfp_t gfp_mask)
 	 * set the second byte to be the "transfer buffer"
 	 */
 	/* XXX Need to verify this earlier */
-	BUG_ON(gbuf->cport->id > (u16)U8_MAX);
-	gbuf->transfer_buffer->cport_id = gbuf->cport->id;
+	BUG_ON(gbuf->cport_id > (u16)U8_MAX);
+	gbuf->transfer_buffer->cport_id = gbuf->cport_id;
 	gbuf->transfer_buffer_length = size;
 	gbuf->actual_length = size;
 
