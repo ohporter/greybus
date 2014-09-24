@@ -10,6 +10,8 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/usb.h>
+#include <linux/kernel.h>
+
 #include "greybus.h"
 #include "svc_msg.h"
 
@@ -17,6 +19,9 @@
 #define ES1_SVC_MSG_SIZE	2048
 #define ES1_GBUF_MSG_SIZE	PAGE_SIZE
 
+#ifndef U8_MAX
+# define U8_MAX	((u8)-1)
+#endif /* !U8_MAX */
 
 static const struct usb_device_id id_table[] = {
 	/* Made up numbers for the SVC USB Bridge in ES1 */
@@ -87,13 +92,12 @@ static void cport_out_callback(struct urb *urb);
  *
  * We are responsible for setting the following fields in a struct gbuf:
  *	void *hcpriv;
- *	void *transfer_buffer;
+ *	transfer_buffer;
  *	u32 transfer_buffer_length;
  */
 static int alloc_gbuf_data(struct gbuf *gbuf, unsigned int size, gfp_t gfp_mask)
 {
 	struct es1_ap_dev *es1 = hd_to_es1(gbuf->gmod->hd);
-	u8 *buffer;
 
 	if (size > ES1_GBUF_MSG_SIZE) {
 		pr_err("guf was asked to be bigger than %ld!\n",
@@ -105,16 +109,17 @@ static int alloc_gbuf_data(struct gbuf *gbuf, unsigned int size, gfp_t gfp_mask)
 	 *
 	 * Also, do a "slow" allocation now, if we need speed, use a cache
 	 */
-	buffer = kmalloc(size + 1, gfp_mask);
-	if (!buffer)
+	gbuf->transfer_buffer = kmalloc(size + 1, gfp_mask);
+	if (!gbuf->transfer_buffer)
 		return -ENOMEM;
 
 	/*
 	 * we will encode the cport number in the first byte of the buffer, so
 	 * set the second byte to be the "transfer buffer"
 	 */
-	buffer[0] = gbuf->cport->id;
-	gbuf->transfer_buffer = &buffer[1];
+	/* XXX Need to verify this earlier */
+	BUG_ON(gbuf->cport->id > (u16)U8_MAX);
+	gbuf->transfer_buffer->cport_id = gbuf->cport->id;
 	gbuf->transfer_buffer_length = size;
 	gbuf->actual_length = size;
 
@@ -127,14 +132,10 @@ static int alloc_gbuf_data(struct gbuf *gbuf, unsigned int size, gfp_t gfp_mask)
 /* Free the memory we allocated with a gbuf */
 static void free_gbuf_data(struct gbuf *gbuf)
 {
-	u8 *transfer_buffer;
-	u8 *buffer;
-
-	transfer_buffer = gbuf->transfer_buffer;
 	/* Can be called with a NULL transfer_buffer on some error paths */
-	if (transfer_buffer) {
-		buffer = &transfer_buffer[-1];	/* yes, we mean -1 */
-		kfree(buffer);
+	if (gbuf->transfer_buffer) {
+		kfree(gbuf->transfer_buffer);
+		gbuf->transfer_buffer = NULL;
 	}
 }
 
@@ -199,12 +200,7 @@ static int submit_gbuf(struct gbuf *gbuf, struct greybus_host_device *hd,
 	struct es1_ap_dev *es1 = hd_to_es1(hd);
 	struct usb_device *udev = es1->usb_dev;
 	int retval;
-	u8 *transfer_buffer;
-	u8 *buffer;
 	struct urb *urb;
-
-	transfer_buffer = gbuf->transfer_buffer;
-	buffer = &transfer_buffer[-1];	/* yes, we mean -1 */
 
 	/* Find a free urb */
 	urb = next_free_urb(es1, gfp_mask);
@@ -213,7 +209,8 @@ static int submit_gbuf(struct gbuf *gbuf, struct greybus_host_device *hd,
 
 	usb_fill_bulk_urb(urb, udev,
 			  usb_sndbulkpipe(udev, es1->cport_out_endpoint),
-			  buffer, gbuf->transfer_buffer_length + 1,
+			  &gbuf->transfer_buffer,
+			  gbuf->transfer_buffer_length + 1,
 			  cport_out_callback, gbuf);
 	retval = usb_submit_urb(urb, gfp_mask);
 	return retval;
@@ -302,6 +299,7 @@ static void cport_in_callback(struct urb *urb)
 	 * The CPort number is the first byte of the data stream, the rest of
 	 * the stream is "real" data
 	 */
+	/* XXX We'd better have a non-null transfer buffer */
 	data = urb->transfer_buffer;
 	cport = data[0];
 	data = &data[1];

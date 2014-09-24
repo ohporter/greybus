@@ -116,6 +116,17 @@ struct gmod_string {
 
 typedef void (*gbuf_complete_t)(struct gbuf *gbuf);
 
+/*
+ * We prefix the data to be transferred with a single byte to
+ * indicate the target cport id.  Similarly, incoming data has
+ * a cport_id prefix.  We strip it off before passing it along
+ * to the next layer (above or below).
+ */
+struct transfer_buffer {
+	u8	cport_id;
+	u8	data[0];
+};
+
 struct gbuf {
 	struct kref kref;
 	void *hdpriv;
@@ -123,7 +134,7 @@ struct gbuf {
 	struct greybus_module *gmod;
 	struct gmod_cport *cport;
 	int status;
-	void *transfer_buffer;
+	struct transfer_buffer *transfer_buffer;
 	u32 transfer_flags;		/* flags for the transfer buffer */
 	u32 transfer_buffer_length;
 	u32 actual_length;
