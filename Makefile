@@ -19,6 +19,7 @@ greybus-y :=	core.o		\
 
 obj-m += greybus.o
 obj-m += es1-ap-usb.o
+obj-m += mms114.o
 
 KERNELVER		?= $(shell uname -r)
 KERNELDIR 		?= /lib/modules/$(KERNELVER)/build
